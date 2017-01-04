@@ -1,0 +1,2 @@
+# aduc
+informatic project LUMI
