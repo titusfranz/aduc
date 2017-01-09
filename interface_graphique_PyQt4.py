@@ -38,42 +38,52 @@ class Interface_Graphique(QtGui.QWidget):
         - Fenêtre Graphique
         """
 
-                
         super(Interface_Graphique, self).__init__()
-        
-        self.main_layout = QtGui.QHBoxLayout() ### Permission d'ecriture de widget
-        self.setLayout(self.main_layout) ### Application des widgets
         
         ################################################################
         ############ ECRITURE DES WIDGETS ############
         ################################################################
         self.button_start = QtGui.QPushButton('START', self) ### Bouton START
-        self.main_layout.addWidget(self.button_start)
         
         self.button_stop = QtGui.QPushButton('STOP', self) ### Bouton STOP
-        self.main_layout.addWidget(self.button_stop)
         
         self.check_port = QtGui.QCheckBox(self) ### Case d'ouverture de port
-        self.main_layout.addWidget(self.check_port)
+        self.check_port.setChecked(False) ### Initialise le Check               
+        
         self.entry_port = QtGui.QLineEdit("PORT USB") ### Case pour entrer le port
-        self.main_layout.addWidget(self.entry_port)
         
         
-        self.fig = Figure()
-        self.x = linspace(-pi, pi, 30)
-        self.y = cos(self.x)
+        self.figure = plt.figure()
+        self.canvas_plot = FigureCanvas(self.figure) ### Insertion d'une case figure
         
-        self.canvas = FigureCanvas(self.fig) ### Insertion d'une case figure
-        self.main_layout.addWidget(self.canvas)
+        ################################################################
+        ############ POSITION DES WIDGETS ############
+        ################################################################
         
+        grid = QtGui.QGridLayout() ### Ouverture de la grid (matrice)
+        self.setLayout(grid)
+        
+        grid.addWidget(self.button_start, 0,1)
+        grid.addWidget(self.button_stop, 0,2)
+        grid.addWidget(self.check_port, 1,1)
+        grid.addWidget(self.entry_port, 1,2)     
+        grid.addWidget(self.canvas_plot, 3, 1)
+        
+
         
         self.show()
+        
     
         ################################################################
         ########### APPEL DES COMMANDES ############
         ################################################################
         self.button_start.clicked.connect(self.button_start_command)
         self.button_stop.clicked.connect(self.button_stop_command)
+        
+        ### Cliquer sur la case va appeler la fonction open_port
+        ### ouvrant ou fermant ainsi le port usb de la carte ADUC
+        ### Ne fonctionne pour l'instant PAS
+        self.check_port.connect(self.check_port, QtCore.SIGNAL('stateChanged(int'), self.open_port)
 
         
         ################################################################
@@ -87,12 +97,10 @@ class Interface_Graphique(QtGui.QWidget):
         ### Ajouter les commandes disponibles dans le programme principal
         ### pour la commande START, ie :
         ### - carte.freerun()
-        print "Aquisition START"        
-        self.y = cos(self.x) ### Test d'ouverture de plot
-        self.line.set_ydata(self.y)
-        self.canvas.draw()
-
-        
+        x = np.linspace(0., 4*np.pi, 100)
+        plt.plot(x, np.sin(x))
+        show()
+        print "Aquisition START"     
 
     def button_stop_command(self):
         """
@@ -112,8 +120,10 @@ class Interface_Graphique(QtGui.QWidget):
         """
         ### - carte.open()
         ### - carte.is_open() instead of print "Port USB - Open"        
-        if self.check_port.isChecked :
-            print "Port USB - Open"
+        if self.check_port.isChecked() :
+            self.lineEdit.setText("Port USV - Open")
+        else :
+            self.lineEdit.setText("Port  USB - Close")
 
     def port_value(self):
         """
