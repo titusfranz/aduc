@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jan 06 19:48:50 2017
-
 @author: DragoMagnus
-
 Interface Graphique PyQt4 - Projet
 Cette première version utilise le module PyQt4, une mise à jour vers PyQt5
 sera effectuée après création de la première interface graphique
-
 """
 
 import sys
@@ -23,6 +20,15 @@ import Projet_ADUC as ADUC
 from pylab import*
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
+"""
+IMPORT TEST
+"""
+import collections
+import random
+import time
+import math
+import numpy as np
+
 carte = ADUC.ADUC()
 
 
@@ -31,7 +37,7 @@ class Interface_Graphique(QtGui.QWidget):
     Cette classe va permettre la création de l'interface grapgique
     """
     
-    def __init__(self):     
+    def __init__(self, sampleinterval=0.1, timewindow=10., size=(600,350)):     
         """
         Cette fonction initialise une variable parent qui permettra
         aux différents widgets de se référer à cette base.
@@ -57,6 +63,7 @@ class Interface_Graphique(QtGui.QWidget):
         
         self.check_port = QtGui.QPushButton('Ouverture PORT', self) ### Bouton d'ouverture
         self.check_port_close = QtGui.QPushButton('Fermeture PORT', self) ### Bouton de fermeture
+								
         """
         On tentera ici de faire une case check pour remplacer les deux boutons
         et ainsi n'avoir qu'une seule fonction avec un if
@@ -67,10 +74,35 @@ class Interface_Graphique(QtGui.QWidget):
         self.entry_port = QtGui.QLineEdit("Enter Port") ### Case pour entrer le port
         
         
-        self.figure = plt.figure()
-        self.canvas_plot = pg.GraphicsLayoutWidget() #self.figure) ### Insertion d'une case figure
+        #self.canvas_plot = pg.GraphicsLayoutWidget() #self.figure) ### Insertion d'une case figure
+        #self.timer = QtCore.QTimer()
+								
+								
+								
+        """
+        TEST DE GRAPHIQYE DEFILANT DANS UNE INTERFACE GRAPHIQUE
+        """
+        self._interval = int(sampleinterval*1000)
+        self._bufsize = int(timewindow/sampleinterval)
+        self.databuffer = collections.deque([0.0]*self._bufsize, self._bufsize)
+        self.x = np.linspace(-timewindow, 0.0, self._bufsize)
+        self.y = np.zeros(self._bufsize, dtype=np.float)
+								
+        # PyQtGraph stufff
         
-        ################################################################
+        self.canvas_plot = pg.GraphicsLayoutWidget() ### Creation d'un canvas
+        self.plt = self.canvas_plot.addPlot(title='Dynamic Plotting with PyQtGraph') ### Utilisation du canvas
+        self.plt.resize(*size)
+        self.plt.showGrid(x=True, y=True)
+        self.plt.setLabel('left', 'amplitude', 'V')
+        self.plt.setLabel('bottom', 'time', 's')
+        self.curve = self.plt.plot(self.x, self.y, pen=(255,0,0))
+								
+        # QTimer
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.updateplot)
+        self.timer.start(self._interval)						
+	  ################################################################
         ############ POSITION DES WIDGETS ############
         ################################################################
         
@@ -117,8 +149,8 @@ class Interface_Graphique(QtGui.QWidget):
         if not self._active :
             self._active = True
             self.button_start.setText("STOP")
-            self.scrollplot()
-            QtCore.QTimer.singleShot(0, self.freerun)
+            #QtCore.QTimer.singleShot(0, self.scrollplot)
+            #QtCore.QTimer.singleShot(0, self.freerun)
             print "Aquisition START"
         else :
             self._active = False
@@ -184,26 +216,19 @@ class Interface_Graphique(QtGui.QWidget):
         self.button_start.setText('START')
         self._active = False
         
-    def scrollplot(self):
-        win = self.canvas_plot.GraphicsWindow()
-        win.setWindowTitle('Graphe ... peut etre')
-        
-        p1 = win.addPlot()
-        data1 = self.data
-        curve1 = p1.plot(data1)
-        ptr1 = 0
-        def update1():
-            global data1, curve1, ptr1
-            data1[:-1] = data1[1:]  # shift data in the array one sample left
-                            # (see also: np.roll)
-            data1[-1] = np.random.normal()
-            curve1.setData(data1)
-        
-        timer = pg.QtCore.QTimer()
-        timer.timeout.connect(update1)
-        timer.start(50)
+    def getdata(self):
+        frequency = 0.5
+        noise = random.normalvariate(0., 1.)
+        new = 10.*math.sin(time.time()*frequency*2*math.pi) + noise
+        return new
 
-
+    def updateplot(self):
+        self.databuffer.append( self.getdata() )
+        self.y[:] = self.databuffer
+        self.curve.setData(self.x, self.y)
+        self.system.processEvents()
+        
+        
 if __name__ == "__main__":
     system = QtGui.QApplication(sys.argv)
     graphique = Interface_Graphique()
