@@ -80,7 +80,7 @@ class Interface_Graphique(QtGui.QWidget):
 								
 								
         """
-        TEST DE GRAPHIQYE DEFILANT DANS UNE INTERFACE GRAPHIQUE
+        TEST DE GRAPHIQYE DEFILANT DANS UNE INTERFACE GRAPHIQUE - WORK
         """
         self._interval = int(sampleinterval*1000)
         self._bufsize = int(timewindow/sampleinterval)
@@ -126,7 +126,7 @@ class Interface_Graphique(QtGui.QWidget):
         ################################################################
         self.button_start.clicked.connect(self.button_start_command)
         self.button_stop.clicked.connect(self.button_stop_command)
-        
+
         self.check_port.clicked.connect(self.open_port)        
         self.check_port_close.clicked.connect(self.close_port)
         
@@ -151,6 +151,7 @@ class Interface_Graphique(QtGui.QWidget):
             self.button_start.setText("STOP")
             #QtCore.QTimer.singleShot(0, self.scrollplot)
             #QtCore.QTimer.singleShot(0, self.freerun)
+            self.freerun()        
             print "Aquisition START"
         else :
             self._active = False
@@ -164,7 +165,7 @@ class Interface_Graphique(QtGui.QWidget):
         le message d'arrêt, cette fonction peut êtr obsolète si la fonction
         précédente fonctionne.
         """
-        carte.stop()
+        carte.stop()								
         print "Aquisition STOP"
         
     def open_port(self):
@@ -178,9 +179,10 @@ class Interface_Graphique(QtGui.QWidget):
         carte.port = self.entry_port.text()
         print carte.port, carte.name
         carte.baudrate = 115200
-        
-        carte.open()
+								
+        carte.open() ### affiche des caracteres et fait planter le programme
         print carte.is_open
+   
 
     def close_port(self):
         """
@@ -197,37 +199,43 @@ class Interface_Graphique(QtGui.QWidget):
     ############ FONCTIONS UTILES ############
     ################################################################ 
     def freerun(self):
-        from time import sleep
+        """
+        Cette fonction permet de lancer l'aquisition des données de la carte
+        ADUC
+        """						
+        #from time import sleep
         carte.write('f')
         print carte.read(1)
-        sleep(0.05)        
+        #sleep(0.05)        
         while self._active:
             print carte.name
-            QtGui.qApp.processEvents()
+            #QtGui.qApp.processEvents()
             print carte.read(1)
             ascii = carte.read(512)
             print carte.asciitoint(ascii)
-            self.data = carte.asciitoint(ascii)
+            data = carte.asciitoint(ascii)
+            return data												
             
             if self._active == False:
-                break
-            
-        carte.stop()        
-        self.button_start.setText('START')
-        self._active = False
-        
+                break						
+												
+												
     def getdata(self):
+        """
+        Cette fonction est une fonction test pour le graphe déroulant
+        """
         frequency = 0.5
         noise = random.normalvariate(0., 1.)
         new = 10.*math.sin(time.time()*frequency*2*math.pi) + noise
         return new
 
+				
     def updateplot(self):
-        self.databuffer.append( self.getdata() )
+        self.databuffer.append( self.freerun())
         self.y[:] = self.databuffer
         self.curve.setData(self.x, self.y)
         self.system.processEvents()
-        
+
         
 if __name__ == "__main__":
     system = QtGui.QApplication(sys.argv)
