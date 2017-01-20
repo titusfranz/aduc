@@ -25,7 +25,6 @@ from PyQt4 import QtCore
 from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
 
-
 import Projet_ADUC as ADUC
 
 import collections
@@ -47,7 +46,7 @@ class Realtimeplot(object):
         
         ### Pygraph init
         self.canvas_plot = pg.GraphicsLayoutWidget() ### Creation d'un canvas
-        self.plt = self.canvas_plot.addPlot(title='Dynamic Plotting with PyQtGraph') ### Utilisation du canvas
+        self.plt = self.canvas_plot.addPlot(title='ADUC DATA') ### Utilisation du canvas
         #self.plt.resize(*size)
         self.plt.showGrid(x=True, y=True)
         self.plt.setLabel('left', 'amplitude', 'V')
@@ -61,8 +60,7 @@ class Realtimeplot(object):
         """
         self.y.extend(data)
         self.curve.setData(self.x, self.y)
-    
-    
+
     def time_scale(self, timewindow, sampleinterval):
         """
         Cette fonction permet de choisir la taille de la feêtre de plot
@@ -72,6 +70,11 @@ class Realtimeplot(object):
         self.databuffer = collections.deque([0.0], self._bufsize) # mabe maxlen needed (maxlen = 512)
         self.x = np.linspace(-int(timewindow), 0.0, self._bufsize)
         self.y = collections.deque(np.zeros(self._bufsize), self._bufsize)
+							
+"""
+On ajoutera ici une classe RealtimeDSP qui permettra de tracer la DSP du signal.
+En fonction de la vitesse de calcul, le plot pourrait être en temps réel
+"""
         
 
 class Interface_Graphique(QtGui.QWidget):
@@ -96,8 +99,10 @@ class Interface_Graphique(QtGui.QWidget):
 
         super(Interface_Graphique, self).__init__()
         self.carte = ADUC.ADUC()
-        self.plot = Realtimeplot()
+        self.plot_set = Realtimeplot()
         self._active = False
+        self.panel = Panel_Control()
+        self.setWindowTitle("Fenetre Principale")
 
         self.button_start = QtGui.QPushButton('START', self) ### Bouton START
         #self.button_quit = QtGui.QPushButton('APOCALYPSE', self) ### Bouton STOP HIStoriqUE
@@ -106,14 +111,11 @@ class Interface_Graphique(QtGui.QWidget):
         self.check_port_close = QtGui.QPushButton('Fermeture PORT', self) ### Bouton de fermeture
 								          
         self.entry_port = QtGui.QLineEdit("COM3") ### Case pour entrer le port plus tar remplacer par enter PORT
-
-        """
-        Créer une fenêtre Labler
-        """
-        self.label_timewindow = QtGui.QLineEdit("20") ## Change la taille des abscisses
-        self.label_sampleinterval = QtGui.QLineEdit("0.1")
-        self.button_timewindow_sampleinterval = QtGui.QPushButton('Apply Time Scale', self) ## Applique le changement
-								      						
+        self.button_panel = QtGui.QPushButton('Panel Plot', self) ### Affiche le panel pour le controle de plot
+								
+        self.button_quit = QtGui.QPushButton('Quitter', self) ### Bouton qui permet de quitter l'application
+        #self.button_quit.setFont(QtGui.QFont("Times", 15, QtGui.QFont.Bold)) ###  Change les caracteres d ecriture 			
+								
 	   ################################################################
         ############ POSITION DES WIDGETS ############
         ################################################################
@@ -122,17 +124,13 @@ class Interface_Graphique(QtGui.QWidget):
         grid = QtGui.QGridLayout() ### Ouverture de la grid (matrice)
         self.setLayout(grid)
         
-        grid.addWidget(self.button_start, 0,0)
+        grid.addWidget(self.button_start, 0,1)
         grid.addWidget(self.check_port, 0,2)
         grid.addWidget(self.check_port_close, 1, 1)
         grid.addWidget(self.entry_port, 1,2)     
-        grid.addWidget(self.plot.canvas_plot, 3, 1)
-        grid.addWidget(self.label_timewindow, 5,1)
-        grid.addWidget(self.label_sampleinterval, 5,2)
-        grid.addWidget(self.button_timewindow_sampleinterval, 5, 3)
-        
-        
-        self.show()
+        grid.addWidget(self.plot_set.canvas_plot, 3, 1)
+        grid.addWidget(self.button_panel, 3, 2)
+        grid.addWidget(self.button_quit, 4,1)
         
     
         ################################################################
@@ -142,14 +140,23 @@ class Interface_Graphique(QtGui.QWidget):
 
         self.check_port.clicked.connect(lambda : self.carte.open_port(self.entry_port.text()))        
         self.check_port_close.clicked.connect(self.close_port)
+								
+        self.panel.button_timewindow_sampleinterval.clicked.connect(lambda: self.plot_set.time_scale(self.panel.label_timewindow.text(),self.panel.label_sampleinterval.text()))								
+        self.button_quit.clicked.connect(self.button_quit_command)
         
-        self.button_timewindow_sampleinterval.clicked.connect(lambda: self.plot.time_scale(self.label_timewindow.text(),self.label_sampleinterval.text()))
-        
+        self.button_panel.clicked.connect(self.panel_control)
         self._active = False
         
         ################################################################
         ############ CREATION DES COMMANDES ############
         ################################################################
+
+    def button_quit_command(self):
+        """
+        Cette fonction permet de quitter l'interface graphique proprement
+        """
+        self.close()
+								
         
     def button_start_command(self):
         """
@@ -178,11 +185,11 @@ class Interface_Graphique(QtGui.QWidget):
         while self._active:
             QtGui.qApp.processEvents()
             data = self.carte.freerun_carte()
-            self.plot.updateplot(data)
+            self.plot_set.updateplot(data)
             
             if self._active == False:
                 break	
-
+															
     def close_port(self):
         """
         Cette fontion va fermer le port de la carte d'aquisition et vérifier
@@ -191,13 +198,54 @@ class Interface_Graphique(QtGui.QWidget):
         print "Fermeture du port"
         carte.close()
         print carte.is_open
+		
+    def panel_control(self):
+        self.panel.show()						
         
+class Panel_Control(QtGui.QWidget):
+    """
+    Cette classe va permettre la création du panel de contrôle de plot
+    """
+    
+    def __init__(self):
+        super(Panel_Control, self).__init__()
+        self.carte = ADUC.ADUC()
+        self.plot_set = Realtimeplot()
+        self.setWindowTitle("Controle du Plot")
+        
+        self.text_timewindow = QtGui.QLabel("Axe du Temps")				
+        self.text_sampleinterval = QtGui.QLabel("Echantillonnage")
+								
+        self.label_timewindow = QtGui.QLineEdit("1") ## Change la taille des abscisses
+        self.label_sampleinterval = QtGui.QLineEdit("1") ## Change l'interval d'echantillonage
+        #self.button_timewindow = QtGui.QPushButton('Appliquer le temps')	
+        #self.button_sampleinterval = QtGui.QPushButton("Appliquer l'intervalle")
+								
+        self.button_timewindow_sampleinterval = QtGui.QPushButton('Appliquer', self) ## Applique le changement					
+					
+        global grid
+        grid = QtGui.QGridLayout() ### Ouverture de la grid (matrice)
+        self.setLayout(grid)
+						
+        grid.addWidget(self.label_timewindow, 1,1)
+        #grid.addWidget(self.button_timewindow, 2,1)
+        grid.addWidget(self.text_timewindow, 0,1)								
+								
+        grid.addWidget(self.label_sampleinterval, 1,2)
+        #grid.addWidget(self.button_sampleinterval, 2,2)
+        grid.addWidget(self.text_sampleinterval, 0,2)
+								
+        grid.addWidget(self.button_timewindow_sampleinterval, 3,1)
+		
 
-
+        #self.button_timewindow.clicked.connect(lambda : self.plot.time_scale(self.label_timewindow.text()))
+        #self.button_sampleinterval.clicked.connect(lambda : self.plot.time_scale(self.label_sampleinterval.text()))
+        						
+        
+									
 if __name__ == "__main__":
     system = QtGui.QApplication(sys.argv)
-    graphique = Interface_Graphique()
+    graphique = Interface_Graphique()		
     graphique.show()
     sys.exit(system.exec_())
-    
     
