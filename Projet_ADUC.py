@@ -1,32 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jan 04 16:37:24 2017
-
 @author: Titus Franz, William Dubosclard
-
-
 PROGRAMME DRIVERS :
 Utilise les commandes de la carte ADUC et les envoie sur le
 projet de l'interface graphique
-
-
-
 Le Futur :
 - Création d'une fenêtre pour y stocker la possibilitée de changer la taille
 de la fenêtre de plot --> Création d'un widget spécial
-
 - Insértion d'un graphe qui va calculer la DSP, en premier lieu avec un plot fixe
 puis, avec un plot déroulant --> Création d'une classe DSP (dans Projet ADUC ??)
-
 """
 
 import serial as serial
 import numpy as np
 from itertools import izip #in python 3 not needed, replace here izip by zip
-
-from pyqtgraph.Qt import QtGui, QtCore
-import pyqtgraph as pg
-from interface_graphique_PyQt4_V2 import Realtimeplot
+import time
 
 
 class ADUC(serial.Serial):
@@ -63,9 +52,10 @@ class ADUC(serial.Serial):
         self.write('s')
         print self.read(1)
 
-    def lancement(self):        
+    def lancement_freerun(self):        
         self.write('f')
         print self.read(1)
+        
 
     def freerun_carte(self):
         """
@@ -78,10 +68,31 @@ class ADUC(serial.Serial):
         data = self.asciitoint(ascii)
         return data
         
+    def normal_carte(self):
+        self.write('n')
+        print self.read(1)
+        
+        self.write2Ndigits(164589, 6)
+        print 'the card answers ', self.read()
+        
+        #print 'in the buffer is', self.asciitoint(self.read())
+        
+        self.stop()
+        
+        
     def inwaiting(self):
         while self.read(1) != 'd' :
             continue
         print "d detected"
+    
+    def write2Ndigits(self,number,length):
+        ascii = ''
+        number = str(number)
+        number = (int(length)-len(number))*'0' + number       
+        for i in range(0, length, 2):
+            ascii = ascii + chr(int(number[i:i+2]))
+        print 'the ascii of ', number, ' is ', ascii
+        self.write(ascii)
             
 
     def asciitoint(self, ascii):
@@ -102,19 +113,3 @@ class ADUC(serial.Serial):
         
 
 
-
-#carte = 0
-#carte = ADUC()
-#carte.port = 'COM3'
-#carte
-
-
-#carte.open()
-#print carte.is_open
-
-#carte.freerun()
-
-#carte.stop()
-
-#carte.close()
-#print carte.is_open
