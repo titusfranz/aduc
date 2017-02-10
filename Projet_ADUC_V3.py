@@ -27,7 +27,13 @@ class ADUC(serial.Serial):
     - Free Run
     - Stop
     """
-    
+    CLOCK = 41780.
+    NUM_TIME_POINTS = 256.
+    PRESCALER = 1.
+    TIMEBASE = 10.
+    TRIGPOSITION = 100
+    TRIGLEVEL = 1000
+    TRIGSLOPE = '+'
     
     def __init__(self):
         super(serial.Serial, self).__init__()
@@ -43,59 +49,83 @@ class ADUC(serial.Serial):
         
         self.port = entry_port
         print self.port, self.name
-        self.baudrate = 115200
+        self.baudrate = 38400
 								
         self.open() ### affiche des caracteres et fait planter le programme
-        print self.is_open
+        print self.isOpen()
+        
     def stop(self):
         """
         On définit la fonction stop qui va stopper l'aquisition des données 
         de la carte ADUC
         """
+        self.flushInput()
         self.write('s')
         print self.read(1)
 
-    def lancement_freerun(self):        
+    def lancement_freerun(self): 
+        self.stop()
         self.write('f')
-        print self.read(1)
+        print self.read()
+        self.write2Ndigits(int(self.TIMEBASE*self.CLOCK/self.NUM_TIME_POINTS/self.PRESCALER), 6)
+        print self.read2Ndigits(6)
+        
+    def read2Ndigits(self, number_of_digits=4):
+        if(number_of_digits%2!=0):
+            print 'number of digits must be even in read2Ndigits'
+        bytes_list = self.read(number_of_digits/2)
+        return int(''.join([str(ord(byte)).zfill(2) for byte in bytes_list]))
         
 
     def freerun_carte(self):
         """
         Cette fonction permet de lancer l'aquisition des données de la carte
         ADUC
-        """				
-        self.inwaiting()
-        ascii = self.read(512)
+        """	
+        data = 0
+        if(self.inWaiting()!=0):
+            if(self.read()=='d'):
+        #self.inwaiting()
+                ascii = self.read(512)
         #print carte.asciitoint(ascii)
-        data = self.asciitoint(ascii)
+                data = self.asciitoint(ascii)
+            else:
+                self.flushInput()
         return data
         
-    def normal_carte(self):
+    def lancement_normal(self):
+        self.stop()
         self.write('n')
-        print self.read(1)
+        print self.read()        
+        self.write2Ndigits(int(self.TIMEBASE*self.CLOCK/self.NUM_TIME_POINTS/self.PRESCALER), 6)
+        print self.read2Ndigits(6)
+        self.write2Ndigits(self.TRIGPOSITION, 4)
+        print self.read2Ndigits(4)
+        self.write2Ndigits(self.TRIGLEVEL, 4)
+        print self.read2Ndigits(4)
+        self.write(self.TRIGSLOPE)
+        print self.read()
         
-        self.write2Ndigits(164589, 6)
-        print 'the card answers ', self.read()
         
         #print 'in the buffer is', self.asciitoint(self.read())
         
-        self.stop()
+        #self.stop()
         
         
-    def inwaiting(self):
-        while self.read(1) != 'd' :
-            continue
-        print "d detected"
+#    def inwaiting(self):
+#        while self.read(1) != 'd' :
+#            continue
+#        print "d detected"
     
-    def write2Ndigits(self,size,aucuneidee):
-        ascii = ''
-        size = str(size)
-        for i in range(0, aucuneidee, 2):
-            ascii = ascii + chr(int(size[i:i+2]))
-        print 'the ascii of ', size, ' is ', ascii
-        self.write(ascii)
-            
+    def write2Ndigits(self, string, number_of_digits=4): 
+        if(number_of_digits%2!=0):
+            print 'number of digits must be even in write2Ndigits'
+        strvalue = str(string).zfill(number_of_digits)
+        bytes_list = [str(unichr(int(strvalue[i:i+2]))) for i in range(0, number_of_digits, 2)]
+        print [ord(byte) for byte in bytes_list]
+        for byte in bytes_list:
+            self.write(byte)    
+               
 
     def asciitoint(self, ascii):
         raw = iter(map(ord, ascii)) 

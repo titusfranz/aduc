@@ -22,7 +22,7 @@ from PyQt4 import QtCore
 
 import pyqtgraph as pg
 
-import Projet_ADUC as ADUC
+import Projet_ADUC_V3 as ADUC
 
 import collections
 import numpy as np
@@ -126,9 +126,10 @@ class Interface_Graphique(QtGui.QWidget):
         self.check_port = QtGui.QPushButton('Ouverture PORT', self) ### Bouton d'ouverture
         self.check_port_close = QtGui.QPushButton('Fermeture PORT', self) ### Bouton de fermeture
 								          
-        self.entry_port = QtGui.QLineEdit("/dev/ttyUSB1") ### Case pour entrer le port plus tar remplacer par enter PORT
+        self.entry_port = QtGui.QLineEdit("COM5") ### Case pour entrer le port plus tar remplacer par enter PORT
         self.button_panel = QtGui.QPushButton('Panel Plot', self) ### Affiche le panel pour le controle de plot
 								
+        
         self.button_quit = QtGui.QPushButton('Quitter', self) ### Bouton qui permet de quitter l'application
         self._active = False
         #self.button_quit.setFont(QtGui.QFont("Times", 15, QtGui.QFont.Bold)) ###  Change les caracteres d ecriture 			
@@ -191,7 +192,6 @@ class Interface_Graphique(QtGui.QWidget):
             self.freerun()
             print "Aquisition START"
         
-
         else :
             self._active = False
             self.button_start.setText("START")
@@ -203,7 +203,32 @@ class Interface_Graphique(QtGui.QWidget):
         Cette fonction affiche le message de lancement de l'aquisition
         et lance l'aquisition de la carte ADUC
         """  
-        self.carte.normal_carte()
+        if not self._active :
+            self._active = True
+            self.button_normal.setText("STOP")
+            self.normal()
+            print "Aquisition START"
+        
+        else :
+            self._active = False
+            self.button_normal.setText("START")
+            QtCore.QTimer.singleShot(0, self.carte.stop)
+            print "Aquisition STOP"
+    
+    
+    def normal(self):
+        """
+        Programme d'aquisition des données
+        """
+        self.carte.lancement_normal()
+        self._active = True
+        while self._active:
+            QtGui.qApp.processEvents()
+            data = self.carte.freerun_carte()
+            self.plot_set.updateplot(data)
+            
+            if self._active == False:
+                break
         
     def freerun(self):
         """
