@@ -18,7 +18,6 @@ from itertools import izip #in python 3 not needed, replace here izip by zip
 
 from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
-from interface_graphique_PyQt4_V3 import Realtimeplot
 
 
 class ADUC(serial.Serial):
@@ -39,7 +38,7 @@ class ADUC(serial.Serial):
         super(serial.Serial, self).__init__()
         
   
-    def open_port(self,entry_port='PORT'):
+    def open_port(self,entry_port='PORT', baudrate = 38400):
         """
         Cette fonction permet d'ouvrir le port USB lié à la carte ADUC
         et envoie un message de confirmation d'ouverture. Renvoie un
@@ -49,7 +48,7 @@ class ADUC(serial.Serial):
         
         self.port = entry_port
         print self.port, self.name
-        self.baudrate = 38400
+        self.baudrate = baudrate
 								
         self.open() ### affiche des caracteres et fait planter le programme
         print self.isOpen()
@@ -63,7 +62,7 @@ class ADUC(serial.Serial):
         self.write('s')
         print self.read(1)
 
-    def lancement_freerun(self): 
+    def lancement_freerun(self, TIMEBASE, CLOCK, NUM_TIME_POINTS, PRESCALER): 
         self.stop()
         self.write('f')
         print self.read()
@@ -93,7 +92,7 @@ class ADUC(serial.Serial):
                 self.flushInput()
         return data
         
-    def lancement_normal(self):
+    def lancement_normal(self, TIMEBASE, CLOCK, NUM_TIME_POINTS, PRESCALER, TRIGPOSITION, TRIGLEVEL, TRIGSLOPE):
         self.stop()
         self.write('n')
         print self.read()        
@@ -148,4 +147,3 @@ class ADUC(serial.Serial):
         dsp = np.abs(np.fft.fft(data))**2/N
         return dsp
         
-
