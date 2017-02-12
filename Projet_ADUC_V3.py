@@ -12,13 +12,11 @@ de la fenêtre de plot --> Création d'un widget spécial
 puis, avec un plot déroulant --> Création d'une classe DSP (dans Projet ADUC ??)
 """
 
+import time
 import serial as serial
 import numpy as np
 from itertools import izip #in python 3 not needed, replace here izip by zip
 
-from pyqtgraph.Qt import QtGui, QtCore
-import pyqtgraph as pg
-from interface_graphique_PyQt4_V3 import Realtimeplot
 
 
 class ADUC(serial.Serial):
@@ -37,6 +35,8 @@ class ADUC(serial.Serial):
     
     def __init__(self):
         super(serial.Serial, self).__init__()
+        self.data = np.ndarray([])
+        self.timeout=2
         
   
     def open_port(self,entry_port='PORT'):
@@ -59,9 +59,12 @@ class ADUC(serial.Serial):
         On définit la fonction stop qui va stopper l'aquisition des données 
         de la carte ADUC
         """
-        self.flushInput()
+        self.reset_input_buffer()
         self.write('s')
-        print self.read(1)
+        while True:
+            if self.read() == 's':
+                break
+        print 'succescully stopped'
 
     def lancement_freerun(self): 
         self.stop()
@@ -82,16 +85,12 @@ class ADUC(serial.Serial):
         Cette fonction permet de lancer l'aquisition des données de la carte
         ADUC
         """	
-        data = 0
-        if(self.inWaiting()!=0):
-            if(self.read()=='d'):
-        #self.inwaiting()
-                ascii = self.read(512)
-        #print carte.asciitoint(ascii)
-                data = self.asciitoint(ascii)
-            else:
-                self.flushInput()
-        return data
+        if(self.read()=='d'):
+            self.data = self.asciitoint(self.read(512))
+            print len(self.data)
+        else:
+            self.reset_input_buffer()
+        return self.data
         
     def lancement_normal(self):
         self.stop()
@@ -107,15 +106,12 @@ class ADUC(serial.Serial):
         print self.read()
         
         
-        #print 'in the buffer is', self.asciitoint(self.read())
-        
-        #self.stop()
         
         
-#    def inwaiting(self):
-#        while self.read(1) != 'd' :
-#            continue
-#        print "d detected"
+    def search_for_d(self):
+        while self.read(1) != 'd' :
+            continue
+        print "d detected"
     
     def write2Ndigits(self, string, number_of_digits=4): 
         if(number_of_digits%2!=0):
@@ -143,9 +139,5 @@ class ADUC(serial.Serial):
         note: in python 3 izip may be replaced by zip
         """
         
-    def dsp(self, data):
-        N = len(data)
-        dsp = np.abs(np.fft.fft(data))**2/N
-        return dsp
         
-
+    
