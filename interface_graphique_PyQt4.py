@@ -19,14 +19,8 @@ import collections
 import pyqtgraph as pg
 import threading
 
-import Projet_ADUC_V3 as ADUC
+import Projet_ADUC as ADUC
 
-class Test(object):
-        
-    def wait(self):
-        print 'hallo'
-        time.sleep(5)
-        print 'hmm'
 
 
 class Realtimeplot(object):
@@ -34,18 +28,8 @@ class Realtimeplot(object):
     Cette fonction permet de créer des graphes en temps réel dans l'interface
     graphique
     """
-    def __init__(self, samplerate=41.78e6, bufsize=512):
-        self.sampleinterval = 1/samplerate
-        self._bufsize = int(bufsize)
-        self.timewindow = self.sampleinterval*self._bufsize
-        self._interval = int(self.sampleinterval)
-        
-        self.x = np.linspace(-self.timewindow, 0.0, self._bufsize)
-        self.y = collections.deque(np.zeros(self._bufsize), self._bufsize)
-        
-        self.x_dsp = np.fft.rfftfreq(self._bufsize,samplerate)[1:]
-        self.y_dsp = collections.deque(np.zeros(self._bufsize//2), self._bufsize//2)
-        
+    def __init__(self, timebase=10, bufsize=512):
+        self.set_axis(timebase, bufsize)
         
         ### Pygraph init
         self.canvas_plot = pg.GraphicsLayoutWidget() ### Creation d'un canvas
@@ -66,6 +50,19 @@ class Realtimeplot(object):
         self.plt_dsp.setLogMode(x=True, y=True)
         self.curve_dsp = self.plt_dsp.plot(self.x_dsp, self.y_dsp, pen=(255,0,0))
         
+    def set_axis(self, timebase, bufsize):
+        self.bufsize = int(bufsize)
+        self.timebase =  float(timebase) #self.sampleinterval*self.bufsize
+        self.samplerate = self.bufsize/self.timebase
+        
+        self.x = np.linspace(-self.timebase, 0.0, self.bufsize)
+        self.y = collections.deque(np.zeros(self.bufsize), self.bufsize)
+        
+        self.x_dsp = np.fft.rfftfreq(self.bufsize, self.samplerate)[1:]
+        self.y_dsp = collections.deque(np.zeros(self.bufsize//2), self.bufsize//2)
+        
+    def __str__(self):
+        return 'Realtimeplot() with timebase ' + str(self.timebase) + 'and buffersize ' + str(self.bufsize)
         
     def updateplot(self, data):
         """
@@ -75,6 +72,7 @@ class Realtimeplot(object):
         self.y_dsp = self.dsp(np.array(self.y))
         self.curve.setData(self.x, self.y)
         self.curve_dsp.setData(self.x_dsp, self.y_dsp[1:])
+        
              
 
     
@@ -86,13 +84,11 @@ class Realtimeplot(object):
 class Oscilloscope(QObject):
     def __init__(self):
         super(Oscilloscope, self).__init__()
-        
-        self.stopMutex = threading.Lock()
-        
         self.carte = ADUC.ADUC()
         self.data = np.ndarray([])
     
     data_transfer = pyqtSignal(np.ndarray)
+    trigger_settings_transfer = pyqtSignal(int, float, float, float, int, int, str, int)
     started_ok = pyqtSignal()
     mode = pyqtSignal(str)
     
@@ -103,6 +99,7 @@ class Oscilloscope(QObject):
     
     @pyqtSlot(str)
     def start(self, mode='normal'):
+        self.carte.stop()
         if mode=='normal':
             self.carte.lancement_normal()
         elif mode=='freerun':
@@ -127,9 +124,8 @@ class Oscilloscope(QObject):
         """
         print "Fermeture du port"
         self.carte.close()
-        print self.carte.is_open   
-        
-
+        print self.carte.is_open  
+    
         
         
         
@@ -139,13 +135,17 @@ class Interface_Graphique(QWidget):
 
         self.initUi()
         self.setupThread()
+        
+        
         self._active = False
         
 
     def initUi(self):
-        self.realtimeplot = Realtimeplot()
+        self.trig = Panel_Trigger()
+        self.realtimeplot = Realtimeplot(self.trig.TIMEBASE/1000., self.trig.NUM_TIME_POINTS)
         self.setWindowTitle("Fenetre Principale")
 
+        self.button_trig = QPushButton('Trigger Options', self)
         self.button_start = QPushButton('START', self) ### Bouton START
         self.button_normal = QPushButton('Normal ON', self) ### Bouton Trigger
         self.button_openport = QPushButton('Ouverture PORT', self) ### Bouton d'ouverture
@@ -153,9 +153,8 @@ class Interface_Graphique(QWidget):
         self.entry_port = QLineEdit("/dev/ttyUSB1") ### Case pour entrer le port plus tar remplacer par enter PORT
         self.button_panel = QPushButton('Panel Plot', self) ### Affiche le panel pour le controle de plot
         self.button_quit = QPushButton('Quitter', self) ### Bouton qui permet de quitter l'application
-        #self.button_quit.setFont(QtGui.QFont("Times", 15, QtGui.QFont.Bold)) ###  Change les caracteres d ecriture 			
-								
-	   ################################################################
+        
+        #############################################
         ############ POSITION DES WIDGETS ############
         ################################################################
         
@@ -166,6 +165,7 @@ class Interface_Graphique(QWidget):
         grid.addWidget(self.button_start, 0,0)
         grid.addWidget(self.button_normal, 0,1)
         grid.addWidget(self.button_openport, 0,2)
+        grid.addWidget(self.button_trig, 1, 0)
         grid.addWidget(self.button_closeport, 1, 1)
         grid.addWidget(self.entry_port, 1,2)     
         grid.addWidget(self.realtimeplot.canvas_plot, 3, 0)
@@ -191,6 +191,9 @@ class Interface_Graphique(QWidget):
         self.button_normal.clicked.connect(lambda: self.button_start_command('normal'))
         self.oscilloscope.data_transfer.connect(self.data_processing) 
         self.button_quit.clicked.connect(self.button_quit_command)
+        self.button_trig.clicked.connect(self.panel_trig)	
+        
+        self.trig.getdata_button.clicked.connect(self.pass_trigger_settings)
         
         self.thread.start()
     
@@ -211,6 +214,7 @@ class Interface_Graphique(QWidget):
                 self.button_start.setText('STOP')
             else:
                 print mode + ' is no appropriate mode. Please enter either normal or freerun'
+            qApp.processEvents()
             self.oscilloscope.start(mode)
             
         else :
@@ -232,6 +236,27 @@ class Interface_Graphique(QWidget):
         if self._active:
             self.oscilloscope.acquire_data()
         
+        
+    def pass_trigger_settings(self):
+        self.oscilloscope.carte.stop()
+        self.trig.get_trigger_settings()
+        qApp.processEvents()
+        print self.trig.TIMEBASE
+        self.oscilloscope.carte.CLOCK = self.trig.CLOCK
+        self.oscilloscope.carte.NUM_TIME_POINTS = self.trig.NUM_TIME_POINTS
+        self.oscilloscope.carte.PRESCALER = self.trig.PRESCALER
+        self.oscilloscope.carte.TIMEBASE = self.trig.TIMEBASE
+        self.oscilloscope.carte.TRIGPOSITION = self.trig.TRIGPOSITION
+        self.oscilloscope.carte.TRIGLEVEL = self.trig.TRIGLEVEL
+        self.oscilloscope.carte.TRIGSLOPE = self.trig.TRIGSLOPE
+        self.oscilloscope.carte.timeout = self.trig.timeout
+        #self.oscilloscope.carte.baudrate = self.trig.baudrate
+        self.realtimeplot.set_axis(self.trig.TIMEBASE/1000., self.trig.NUM_TIME_POINTS)
+        self.trig.close()
+        
+        
+    def panel_trig(self):
+        self.trig.show()    
 
     def button_quit_command(self):
         """
@@ -240,10 +265,92 @@ class Interface_Graphique(QWidget):
         app.kernel.do_shutdown(True)  
         self.close()
 								
+class Panel_Trigger(QWidget):
+    """
+    Cette classe va permettre la création du panel de contrôle de plot
+    """
+    
+    def __init__(self, baudrate=38400, CLOCK=4178., NUM_TIME_POINTS=256., PRESCALER=1., TIMEBASE=10., TRIGPOSITION=100, TRIGLEVEL=1000, TRIGSLOPE ='+', timeout=2):
+        super(Panel_Trigger, self).__init__()
+        
+        self.CLOCK = CLOCK
+        self.NUM_TIME_POINTS = NUM_TIME_POINTS
+        self.PRESCALER = PRESCALER
+        self.TIMEBASE = TIMEBASE
+        self.TRIGPOSITION = TRIGPOSITION
+        self.TRIGLEVEL = TRIGLEVEL
+        self.TRIGSLOPE = TRIGSLOPE
+        self.timeout = timeout
+        self.baudrate = baudrate
         
         
+        self.setWindowTitle("Contrôle du mode Trigger")
+		
+        self.clock_lineEdit = QLineEdit(str(CLOCK)) ### Modification parametre Clock
+        self.clock_button = QLabel('CLOCK', self)
+								
+        self.num_time_point_lineEdit = QLineEdit(str(NUM_TIME_POINTS)) 
+        self.num_time_point_button = QLabel('NUM_TIME_POINT', self)
 
+        self.baudrate_lineEdit = QLineEdit(str(baudrate))
+        self.baudrate_button = QLabel('BAUDRATE', self)
+
+        self.prescaler_lineEdit = QLineEdit(str(PRESCALER))
+        self.prescaler_button = QLabel('PRESCALER', self)
+
+        self.timebase_lineEdit = QLineEdit(str(TIMEBASE))
+        self.timebase_button = QLabel('TIMEBASE', self)
+
+        self.trigposition_lineEdit = QLineEdit(str(TRIGPOSITION))
+        self.trigposition_button = QLabel('TRIGPOSITION', self)
+
+        self.triglevel_lineEdit = QLineEdit(str(TRIGLEVEL))
+        self.triglevel_button = QLabel('TRIGLEVELE', self)
+
+        self.trigslope_lineEdit = QLineEdit(str(TRIGSLOPE))						
+        self.trigslope_button = QLabel('TRIGSLOPE', self)	
+        
+        self.getdata_button = QPushButton('Apply settings')
+
+        global grid
+        grid = QGridLayout() ### Ouverture de la grid (matrice)
+        self.setLayout(grid)
+        
+        grid.addWidget(self.clock_button, 0,0)
+        grid.addWidget(self.clock_lineEdit, 0,1)
+        grid.addWidget(self.num_time_point_button, 1,0)
+        grid.addWidget(self.num_time_point_lineEdit, 1,1)
+        grid.addWidget(self.baudrate_button, 2, 0)
+        grid.addWidget(self.baudrate_lineEdit, 2,1)     
+        grid.addWidget(self.prescaler_button, 3, 0)
+        grid.addWidget(self.prescaler_lineEdit, 3, 1)
+        grid.addWidget(self.timebase_button, 4, 0)
+        grid.addWidget(self.timebase_lineEdit, 4,1)
+        grid.addWidget(self.trigposition_button, 5, 0)
+        grid.addWidget(self.trigposition_lineEdit, 5,1)        
+        grid.addWidget(self.triglevel_button, 6,0)
+        grid.addWidget(self.triglevel_lineEdit, 6,1)
+        grid.addWidget(self.trigslope_button, 7,0)							
+        grid.addWidget(self.trigslope_lineEdit, 7,1)	
+        grid.addWidget(self.getdata_button,8,0)
+        
+    def get_trigger_settings(self):
+        self.CLOCK = float(self.clock_lineEdit.text())
+        self.NUM_TIME_POINTS = float(self.num_time_point_lineEdit.text())
+        self.PRESCALER = float(self.prescaler_lineEdit.text())
+        self.TIMEBASE = float(self.timebase_lineEdit.text())
+        self.TRIGPOSITION = int(self.trigposition_lineEdit.text())
+        self.TRIGLEVEL = int(self.triglevel_lineEdit.text())
+        self.TRIGSLOPE = str(self.trigslope_lineEdit.text())
+        self.timeout = 2 
+        self.baudrate = int(self.baudrate_lineEdit.text())
+        
+   
+        
+        
+        				
 if __name__ == "__main__":
     system = QApplication(sys.argv)
     graphique = Interface_Graphique()		
     graphique.show()
+    sys.exit(system.exec_())

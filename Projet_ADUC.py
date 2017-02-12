@@ -26,7 +26,7 @@ class ADUC(serial.Serial):
     - Stop
     """
     
-    def __init__(self, CLOCK=4178, NUM_TIME_POINTS=256., PRESCALER=1., TIMEBASE=10., TRIGPOSITION=100, TRIGLEVEL=1000, TRIGSLOPE ='+', timeout=2):
+    def __init__(self, CLOCK=4178., NUM_TIME_POINTS=256., PRESCALER=1., TIMEBASE=10., TRIGPOSITION=100, TRIGLEVEL=1000, TRIGSLOPE ='+', timeout=2):
         super(serial.Serial, self).__init__()
         self.CLOCK = CLOCK
         self.NUM_TIME_POINTS = NUM_TIME_POINTS
@@ -36,7 +36,6 @@ class ADUC(serial.Serial):
         self.TRIGLEVEL = TRIGLEVEL
         self.TRIGSLOPE = TRIGSLOPE
         self.timeout = timeout
-        
         self.data = np.ndarray([])
     
         
