@@ -99,11 +99,7 @@ class Oscilloscope(QObject):
     
     @pyqtSlot(str)
     def open_port(self,portname):
-        print 'hello'
         self.carte.open_port(portname)
-        print 'hello'
-        with self.stopMutex:
-            self.stop = True
     
     @pyqtSlot(str)
     def start(self, mode='normal'):
@@ -113,12 +109,11 @@ class Oscilloscope(QObject):
             self.carte.lancement_freerun()
         else:
             print mode + ' is no appropriate mode. Please enter either normal or freerun'
-        print 'hm'
-        #self.started_ok.emit()
         self.acquire_data()
+        
+        
     @pyqtSlot(np.ndarray)
     def acquire_data(self):
-        'acquire'
         self.data = self.carte.freerun_carte()
         self.data_transfer.emit(self.data)
         
@@ -131,8 +126,8 @@ class Oscilloscope(QObject):
         en renvoyant un FALSE que la commande a été effectué
         """
         print "Fermeture du port"
-        carte.close()
-        print carte.is_open   
+        self.carte.close()
+        print self.carte.is_open   
         
 
         
